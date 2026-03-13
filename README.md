@@ -222,8 +222,8 @@ Make sure you have the following installed:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/project-management-system.git
-cd project-management-system
+git clone [https://github.com/your-username/TaskFlow.git]
+cd TaskFlow
 ```
 
 ### 2. Set up the backend
