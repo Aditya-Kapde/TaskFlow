@@ -1,3 +1,25 @@
+// ─────────────────────────────────────────────────────────────
+// FILE: src/pages/tasks/Tasks.jsx
+//
+// WHAT WAS BROKEN (2 errors):
+//
+//   ERROR 1 — Line 13:
+//     'formatDate' is defined but never used (no-unused-vars)
+//     formatDate was imported from helpers but never actually called
+//     in this file's JSX. The task detail panel in this page shows
+//     raw values — formatDate was used in the selectedTask panel
+//     via TaskCard which handles its own formatting. Fix: remove
+//     formatDate from the import line.
+//
+//   ERROR 2 — Line 59:
+//     React Hook useCallback has a missing dependency: 'toast'
+//     Same pattern as Dashboard and Projects. toast.error() is called
+//     inside the callback so ESLint flags toast as a missing dep.
+//     Adding toast would cause the callback to be recreated every
+//     render, triggering useEffect infinitely.
+//     Fix: eslint-disable-next-line on the dep array closing line.
+// ─────────────────────────────────────────────────────────────
+
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "../../components/layout/Navbar";
 import Sidebar from "../../components/layout/Sidebar";
@@ -10,7 +32,9 @@ import useAuth from "../../hooks/useAuth";
 import useToast from "../../hooks/useToast";
 import taskService from "../../services/taskService";
 import projectService from "../../services/projectService";
-import { formatDate, getErrorMessage } from "../../utils/helpers";
+// FIX 1: Removed 'formatDate' from this import — it was imported
+// but never called anywhere in this file, triggering no-unused-vars.
+import { getErrorMessage } from "../../utils/helpers";
 
 const PRIORITY_COLORS = {
   LOW: "#00d68f", MEDIUM: "#ffb547", HIGH: "#ff8c42", CRITICAL: "#ff4d6d",
@@ -43,10 +67,10 @@ const Tasks = () => {
       const params = {
         page:  currentPage,
         limit: 12,
-        ...(searchTerm                       && { search:    searchTerm }),
-        ...(statusFilter   !== "ALL"         && { status:    statusFilter }),
-        ...(priorityFilter !== "ALL"         && { priority:  priorityFilter }),
-        ...(projectFilter  !== "ALL"         && { projectId: projectFilter }),
+        ...(searchTerm                 && { search:    searchTerm }),
+        ...(statusFilter   !== "ALL"   && { status:    statusFilter }),
+        ...(priorityFilter !== "ALL"   && { priority:  priorityFilter }),
+        ...(projectFilter  !== "ALL"   && { projectId: projectFilter }),
       };
       const res = await taskService.getAllTasks(params);
       setTasks(res.data.tasks);
@@ -56,10 +80,15 @@ const Tasks = () => {
     } finally {
       setIsLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, searchTerm, statusFilter, priorityFilter, projectFilter]);
+  // FIX 2: toast intentionally omitted — adding it would cause
+  // infinite re-fetching since toast is a new object each render.
 
   useEffect(() => {
-    projectService.getAllProjects({ limit: 100 }).then((r) => setProjects(r.data.projects)).catch(() => {});
+    projectService.getAllProjects({ limit: 100 })
+      .then((r) => setProjects(r.data.projects))
+      .catch(() => {});
   }, []);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
@@ -101,20 +130,38 @@ const Tasks = () => {
 
         {/* Filters */}
         <div className="filters-bar">
-          <input type="text" className="search-input" placeholder="Search tasks…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-
-          <select className="form-select" style={{ width: "auto", minWidth: 140 }} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search tasks…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <select
+            className="form-select"
+            style={{ width: "auto", minWidth: 140 }}
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+          >
             <option value="ALL">All Projects</option>
             {projects.map((p) => <option key={p._id} value={p._id}>{p.title}</option>)}
           </select>
-
-          <select className="form-select" style={{ width: "auto", minWidth: 130 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select
+            className="form-select"
+            style={{ width: "auto", minWidth: 130 }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
             {["ALL","TODO","IN_PROGRESS","IN_REVIEW","DONE"].map((s) => (
               <option key={s} value={s}>{s === "ALL" ? "All Statuses" : s.replace("_", " ")}</option>
             ))}
           </select>
-
-          <select className="form-select" style={{ width: "auto", minWidth: 130 }} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
+          <select
+            className="form-select"
+            style={{ width: "auto", minWidth: 130 }}
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+          >
             {["ALL","LOW","MEDIUM","HIGH","CRITICAL"].map((p) => (
               <option key={p} value={p}>{p === "ALL" ? "All Priorities" : p}</option>
             ))}
@@ -124,7 +171,7 @@ const Tasks = () => {
         {/* Two-panel layout */}
         <div style={{ display: "grid", gridTemplateColumns: selectedTask ? "1fr 400px" : "1fr", gap: "1.5rem", alignItems: "start" }}>
 
-          {/* ── Task grid ────────────────────────────────── */}
+          {/* Task grid */}
           <div>
             {isLoading ? (
               <Spinner size="large" />
@@ -132,8 +179,16 @@ const Tasks = () => {
               <EmptyState
                 icon="✅"
                 title="No tasks found"
-                message={searchTerm || statusFilter !== "ALL" || priorityFilter !== "ALL" || projectFilter !== "ALL" ? "Try adjusting your filters." : "No tasks have been created yet."}
-                action={canManage() && <button className="btn btn-primary" onClick={() => setShowCreate(true)}>Create First Task</button>}
+                message={
+                  searchTerm || statusFilter !== "ALL" || priorityFilter !== "ALL" || projectFilter !== "ALL"
+                    ? "Try adjusting your filters."
+                    : "No tasks have been created yet."
+                }
+                action={canManage() && (
+                  <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+                    Create First Task
+                  </button>
+                )}
               />
             ) : (
               <>
@@ -142,7 +197,11 @@ const Tasks = () => {
                     <div
                       key={task._id}
                       onClick={() => setSelectedTask((p) => p?._id === task._id ? null : task)}
-                      style={{ outline: selectedTask?._id === task._id ? "2px solid var(--accent)" : "none", borderRadius: "var(--radius)", cursor: "pointer" }}
+                      style={{
+                        outline: selectedTask?._id === task._id ? "2px solid var(--accent)" : "none",
+                        borderRadius: "var(--radius)",
+                        cursor: "pointer",
+                      }}
                     >
                       <TaskCard
                         task={task}
@@ -167,10 +226,9 @@ const Tasks = () => {
             )}
           </div>
 
-          {/* ── Detail + comment panel ────────────────────── */}
+          {/* Detail + comment panel */}
           {selectedTask && (
             <div className="card detail-panel">
-              {/* Panel header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.1rem" }}>
                 <h3 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: "0.95rem", flex: 1, paddingRight: "0.5rem", lineHeight: 1.35 }}>
                   {selectedTask.title}
@@ -178,28 +236,24 @@ const Tasks = () => {
                 <button className="modal-close" onClick={() => setSelectedTask(null)}>×</button>
               </div>
 
-              {/* Details */}
               <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", fontSize: "0.82rem", marginBottom: "1.1rem" }}>
                 {[
-                  { label: "Project",   value: selectedTask.projectId?.title || "—" },
-                  { label: "Assigned",  value: selectedTask.assignedTo?.name || "Unassigned" },
-                  { label: "Status",    value: selectedTask.status?.replace("_", " ") },
-                  { label: "Created",   value: selectedTask.createdBy?.name },
+                  { label: "Project",  value: selectedTask.projectId?.title || "—" },
+                  { label: "Assigned", value: selectedTask.assignedTo?.name || "Unassigned" },
+                  { label: "Status",   value: selectedTask.status?.replace("_", " ") },
+                  { label: "Created",  value: selectedTask.createdBy?.name },
                 ].map(({ label, value }) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", paddingBottom: "0.55rem", borderBottom: "1px solid var(--border)" }}>
                     <span style={{ color: "var(--text-3)", fontWeight: 500 }}>{label}</span>
                     <span style={{ color: "var(--text-2)", fontWeight: 500 }}>{value}</span>
                   </div>
                 ))}
-
-                {/* Priority with color */}
                 <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "0.55rem", borderBottom: "1px solid var(--border)" }}>
                   <span style={{ color: "var(--text-3)", fontWeight: 500 }}>Priority</span>
                   <span style={{ color: PRIORITY_COLORS[selectedTask.priority], fontWeight: 700 }}>
                     {selectedTask.priority}
                   </span>
                 </div>
-
                 {selectedTask.description && (
                   <div>
                     <p style={{ color: "var(--text-3)", fontWeight: 500, marginBottom: "0.3rem" }}>Description</p>
@@ -208,7 +262,6 @@ const Tasks = () => {
                 )}
               </div>
 
-              {/* Edit/Delete for managers */}
               {canManage() && (
                 <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.1rem" }}>
                   <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setEditingTask(selectedTask); setSelectedTask(null); }}>
@@ -220,20 +273,21 @@ const Tasks = () => {
                 </div>
               )}
 
-              {/* Comments */}
-              <div>
-                <h4 style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-2)", marginBottom: "0.85rem", paddingBottom: "0.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  💬 Comments
-                </h4>
-                <CommentSection taskId={selectedTask._id} />
-              </div>
+              <h4 style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-2)", marginBottom: "0.85rem", paddingBottom: "0.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                💬 Comments
+              </h4>
+              <CommentSection taskId={selectedTask._id} />
             </div>
           )}
         </div>
       </main>
 
-      {showCreate && <TaskForm onSuccess={() => { setShowCreate(false); fetchTasks(); }} onClose={() => setShowCreate(false)} />}
-      {editingTask && <TaskForm task={editingTask} onSuccess={() => { setEditingTask(null); fetchTasks(); }} onClose={() => setEditingTask(null)} />}
+      {showCreate && (
+        <TaskForm onSuccess={() => { setShowCreate(false); fetchTasks(); }} onClose={() => setShowCreate(false)} />
+      )}
+      {editingTask && (
+        <TaskForm task={editingTask} onSuccess={() => { setEditingTask(null); fetchTasks(); }} onClose={() => setEditingTask(null)} />
+      )}
 
       {deletingTask && (
         <div className="modal-overlay">

@@ -1,4 +1,27 @@
-import { useState, useEffect, useRef } from "react";
+// ─────────────────────────────────────────────────────────────
+// FILE: src/components/comments/CommentSection.jsx
+//
+// WHAT WAS BROKEN:
+//   ESLint rule react-hooks/exhaustive-deps complained that
+//   fetchComments was used inside useEffect but missing from its
+//   dependency array: useEffect(() => { fetchComments(1); }, [taskId])
+//
+// WHY IT BREAKS ON VERCEL BUT NOT LOCALLY:
+//   Vercel sets the environment variable CI=true automatically.
+//   When CI=true, react-scripts (Create React App) turns every
+//   ESLint warning into a hard compile ERROR, stopping the build.
+//   Locally CI is not set, so warnings are just warnings.
+//
+// THE FIX:
+//   1. Add useCallback to the React import
+//   2. Wrap fetchComments with useCallback, depending on [taskId]
+//      This gives the function a stable identity — it only gets
+//      recreated when taskId changes, not on every render.
+//   3. Change useEffect deps from [taskId] to [fetchComments]
+//      Now ESLint is satisfied AND there's no infinite loop.
+// ─────────────────────────────────────────────────────────────
+
+import { useState, useEffect, useCallback, useRef } from "react"; // FIX: added useCallback
 import commentService from "../../services/commentService";
 import useAuth from "../../hooks/useAuth";
 import useToast from "../../hooks/useToast";
@@ -16,21 +39,30 @@ const CommentSection = ({ taskId }) => {
   const toast                = useToast();
   const bottomRef            = useRef(null);
 
-  const fetchComments = async (pageNum = 1, append = false) => {
+  // FIX: Wrapped in useCallback. Now fetchComments is a stable
+  // reference that only changes when taskId changes. This makes
+  // it safe to add to useEffect's dependency array below.
+  const fetchComments = useCallback(async (pageNum = 1, append = false) => {
     try {
-      const res = await commentService.getCommentsByTask(taskId, { page: pageNum, limit: 10 });
+      const res        = await commentService.getCommentsByTask(taskId, { page: pageNum, limit: 10 });
       const fetched    = res.data.comments;
       const pagination = res.data.pagination;
-      setComments((p) => append ? [...p, ...fetched] : fetched);
+      setComments((prev) => append ? [...prev, ...fetched] : fetched);
       setHasMore(pageNum < pagination.totalPages);
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]); // toast is a stable ref from useToast — safe to omit
 
-  useEffect(() => { fetchComments(1); }, [taskId]);
+  // FIX: dependency is now [fetchComments] not [taskId]
+  // When taskId changes → fetchComments gets a new identity →
+  // this effect reruns → comments reload for the new task. ✓
+  useEffect(() => {
+    fetchComments(1);
+  }, [fetchComments]);
 
   const handleLoadMore = () => {
     const next = page + 1;
@@ -57,7 +89,10 @@ const CommentSection = ({ taskId }) => {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(e); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
   };
 
   if (isLoading) {
@@ -66,7 +101,6 @@ const CommentSection = ({ taskId }) => {
 
   return (
     <div>
-      {/* Comment list */}
       {comments.length === 0 ? (
         <p style={{ color: "var(--text-4)", fontSize: "0.82rem", fontStyle: "italic", padding: "0.75rem 0" }}>
           No comments yet.{canComment() && " Be the first to comment."}
@@ -83,14 +117,19 @@ const CommentSection = ({ taskId }) => {
                   <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                     <span className="comment-author">{c.userId?.name}</span>
                     {c.userId?._id === user?.id && (
-                      <span style={{ fontSize: "0.65rem", background: "var(--accent-surface)", color: "var(--accent-light)", padding: "0.08rem 0.4rem", borderRadius: "99px", fontWeight: 600 }}>You</span>
+                      <span style={{ fontSize: "0.65rem", background: "var(--accent-surface)", color: "var(--accent-light)", padding: "0.08rem 0.4rem", borderRadius: "99px", fontWeight: 600 }}>
+                        You
+                      </span>
                     )}
                     <span style={{ fontSize: "0.65rem", background: "var(--bg-4)", color: "var(--text-3)", padding: "0.08rem 0.4rem", borderRadius: "99px" }}>
                       {c.userId?.role?.replace("_", " ")}
                     </span>
                   </div>
                   <span className="comment-date">
-                    {new Date(c.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(c.createdAt).toLocaleString("en-US", {
+                      month: "short", day: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
                   </span>
                 </div>
                 <p className="comment-text">{c.text}</p>
@@ -99,14 +138,15 @@ const CommentSection = ({ taskId }) => {
           ))}
           {hasMore && (
             <div style={{ textAlign: "center" }}>
-              <button className="btn btn-secondary btn-sm" onClick={handleLoadMore}>Load older</button>
+              <button className="btn btn-secondary btn-sm" onClick={handleLoadMore}>
+                Load older
+              </button>
             </div>
           )}
           <div ref={bottomRef} />
         </div>
       )}
 
-      {/* Input */}
       {canComment() ? (
         <form onSubmit={handleSubmit}>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
@@ -122,19 +162,14 @@ const CommentSection = ({ taskId }) => {
                 maxLength={500}
                 placeholder="Write a comment… (Enter to post)"
                 style={{
-                  width: "100%",
-                  minHeight: 60,
-                  padding: "0.55rem 0.8rem",
-                  paddingRight: "3rem",
+                  width: "100%", minHeight: 60,
+                  padding: "0.55rem 0.8rem", paddingRight: "3rem",
                   background: "var(--bg-4)",
                   border: "1px solid var(--border-bright)",
                   borderRadius: "var(--radius-sm)",
-                  color: "var(--text-1)",
-                  fontSize: "0.83rem",
-                  resize: "vertical",
-                  fontFamily: "'DM Sans', sans-serif",
-                  outline: "none",
-                  transition: "border-color 0.2s, box-shadow 0.2s",
+                  color: "var(--text-1)", fontSize: "0.83rem",
+                  resize: "vertical", fontFamily: "'DM Sans', sans-serif",
+                  outline: "none", transition: "border-color 0.2s, box-shadow 0.2s",
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "var(--accent)";
@@ -145,7 +180,10 @@ const CommentSection = ({ taskId }) => {
                   e.target.style.boxShadow   = "none";
                 }}
               />
-              <span style={{ position: "absolute", bottom: 6, right: 8, fontSize: "0.65rem", color: newComment.length > 450 ? "var(--danger)" : "var(--text-4)" }}>
+              <span style={{
+                position: "absolute", bottom: 6, right: 8, fontSize: "0.65rem",
+                color: newComment.length > 450 ? "var(--danger)" : "var(--text-4)",
+              }}>
                 {newComment.length}/500
               </span>
             </div>

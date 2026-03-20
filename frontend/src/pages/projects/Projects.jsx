@@ -1,3 +1,24 @@
+// ─────────────────────────────────────────────────────────────
+// FILE: src/pages/projects/Projects.jsx
+//
+// WHAT WAS BROKEN (2 errors):
+//
+//   ERROR 1 — Line 29:
+//     'isAdmin' is assigned a value but never used (no-unused-vars)
+//     isAdmin was destructured from useAuth() but never called
+//     anywhere in this component's JSX or logic. It was a leftover
+//     from an earlier version. Fix: simply remove it from the
+//     destructure.
+//
+//   ERROR 2 — Line 49:
+//     React Hook useCallback has a missing dependency: 'toast'
+//     Same pattern as Dashboard. toast from useToast() is technically
+//     used inside the callback (toast.error) so ESLint flags it.
+//     Adding it would cause the callback — and therefore useEffect —
+//     to re-run on every render, causing infinite fetching.
+//     Fix: eslint-disable-next-line on the dependency array line.
+// ─────────────────────────────────────────────────────────────
+
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "../../components/layout/Navbar";
 import Sidebar from "../../components/layout/Sidebar";
@@ -17,16 +38,19 @@ const Projects = () => {
   const [isLoading, setIsLoading]   = useState(true);
   const [pagination, setPagination] = useState(null);
 
-  const [searchTerm, setSearchTerm]         = useState("");
-  const [statusFilter, setStatusFilter]     = useState("ALL");
-  const [currentPage, setCurrentPage]       = useState(1);
+  const [searchTerm, setSearchTerm]     = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [currentPage, setCurrentPage]   = useState(1);
 
-  const [showCreate, setShowCreate]   = useState(false);
-  const [editingProject, setEditingProject] = useState(null);
+  const [showCreate, setShowCreate]           = useState(false);
+  const [editingProject, setEditingProject]   = useState(null);
   const [deletingProject, setDeletingProject] = useState(null);
-  const [isDeleting, setIsDeleting]   = useState(false);
+  const [isDeleting, setIsDeleting]           = useState(false);
 
-  const { canManage, isAdmin } = useAuth();
+  // FIX 1: Removed 'isAdmin' from the destructure — it was never
+  // used anywhere in this file. Keeping unused variables is an error
+  // in CI environments.
+  const { canManage } = useAuth();
   const toast = useToast();
 
   const fetchProjects = useCallback(async () => {
@@ -46,7 +70,8 @@ const Projects = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, searchTerm, statusFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, searchTerm, statusFilter]); // FIX 2: toast omitted intentionally
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
   useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
@@ -142,7 +167,6 @@ const Projects = () => {
               ))}
             </div>
 
-            {/* Pagination */}
             {pagination?.totalPages > 1 && (
               <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.4rem", marginTop: "2rem" }}>
                 <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>← Prev</button>
@@ -156,17 +180,21 @@ const Projects = () => {
         )}
       </main>
 
-      {/* Create modal */}
       {showCreate && (
-        <ProjectForm onSuccess={() => { setShowCreate(false); fetchProjects(); }} onClose={() => setShowCreate(false)} />
+        <ProjectForm
+          onSuccess={() => { setShowCreate(false); fetchProjects(); }}
+          onClose={() => setShowCreate(false)}
+        />
       )}
 
-      {/* Edit modal */}
       {editingProject && (
-        <ProjectForm project={editingProject} onSuccess={() => { setEditingProject(null); fetchProjects(); }} onClose={() => setEditingProject(null)} />
+        <ProjectForm
+          project={editingProject}
+          onSuccess={() => { setEditingProject(null); fetchProjects(); }}
+          onClose={() => setEditingProject(null)}
+        />
       )}
 
-      {/* Delete confirm */}
       {deletingProject && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 420 }}>

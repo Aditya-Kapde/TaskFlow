@@ -1,3 +1,24 @@
+// ─────────────────────────────────────────────────────────────
+// FILE: src/components/tasks/TaskForm.jsx
+//
+// WHAT WAS BROKEN (1 error):
+//   Line 114: 'selectedPriority' is assigned a value but never used
+//   (no-unused-vars)
+//
+// WHY IT ERRORS ON VERCEL:
+//   ESLint's no-unused-vars rule forbids variables that are declared
+//   but never read. Locally this shows as a warning. On Vercel (CI=true)
+//   it becomes a hard error that stops the build.
+//
+// THE FIX:
+//   Simply delete the line:
+//     const selectedPriority = PRIORITIES.find(...)
+//   It was a leftover from an earlier draft where we displayed a
+//   preview of the selected priority color — that UI was later built
+//   directly inline using formData.priority, making this variable
+//   completely redundant.
+// ─────────────────────────────────────────────────────────────
+
 import { useState, useEffect } from "react";
 import taskService from "../../services/taskService";
 import projectService from "../../services/projectService";
@@ -10,7 +31,7 @@ const PRIORITIES = [
   { value: "HIGH",     color: "#ff8c42" },
   { value: "CRITICAL", color: "#ff4d6d" },
 ];
-const STATUSES   = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
+const STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 
 const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
   const isEdit = !!task;
@@ -25,10 +46,10 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
     deadline:    "",
   });
 
-  const [fieldErrors, setFieldErrors]         = useState({});
-  const [isSubmitting, setIsSubmitting]       = useState(false);
-  const [projects, setProjects]               = useState([]);
-  const [projectMembers, setProjectMembers]   = useState([]);
+  const [fieldErrors, setFieldErrors]           = useState({});
+  const [isSubmitting, setIsSubmitting]         = useState(false);
+  const [projects, setProjects]                 = useState([]);
+  const [projectMembers, setProjectMembers]     = useState([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
   const toast = useToast();
@@ -42,7 +63,9 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
         assignedTo:  task.assignedTo?._id || task.assignedTo || "",
         priority:    task.priority    || "MEDIUM",
         status:      task.status      || "TODO",
-        deadline:    task.deadline ? new Date(task.deadline).toISOString().split("T")[0] : "",
+        deadline:    task.deadline
+          ? new Date(task.deadline).toISOString().split("T")[0]
+          : "",
       });
     }
   }, [task]);
@@ -74,10 +97,10 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
 
   const validate = () => {
     const errors = {};
-    if (!formData.title.trim())                errors.title     = "Title is required";
-    else if (formData.title.trim().length < 3)  errors.title     = "At least 3 characters";
-    if (!formData.projectId)                   errors.projectId = "Select a project";
-    if (formData.description.length > 1000)    errors.description = "Max 1000 characters";
+    if (!formData.title.trim())               errors.title       = "Title is required";
+    else if (formData.title.trim().length < 3) errors.title       = "At least 3 characters";
+    if (!formData.projectId)                  errors.projectId   = "Select a project";
+    if (formData.description.length > 1000)   errors.description = "Max 1000 characters";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -111,18 +134,21 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
     }
   };
 
-  const selectedPriority = PRIORITIES.find((p) => p.value === formData.priority);
+  // FIX: The line "const selectedPriority = PRIORITIES.find(...)"
+  // that used to be here has been REMOVED. It was never used in
+  // the JSX below, causing the no-unused-vars error.
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
-            <div style={{ width: 32, height: 32, borderRadius: "var(--radius-xs)", background: "var(--accent-surface)", border: "1px solid var(--border-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem" }}>
-              ✅
-            </div>
+            <div style={{
+              width: 32, height: 32, borderRadius: "var(--radius-xs)",
+              background: "var(--accent-surface)", border: "1px solid var(--border-accent)",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem",
+            }}>✅</div>
             <h2 className="modal-title">{isEdit ? "Edit Task" : "New Task"}</h2>
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -176,7 +202,7 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
             {fieldErrors.projectId && <p className="form-error">⚠ {fieldErrors.projectId}</p>}
           </div>
 
-          {/* Assign to */}
+          {/* Assign To */}
           <div className="form-group">
             <label className="form-label">Assign To</label>
             <select
@@ -187,15 +213,21 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
               disabled={isSubmitting || !formData.projectId || isLoadingMembers}
             >
               <option value="">
-                {isLoadingMembers ? "Loading members…" : !formData.projectId ? "Select a project first" : "-- Unassigned --"}
+                {isLoadingMembers
+                  ? "Loading members…"
+                  : !formData.projectId
+                  ? "Select a project first"
+                  : "-- Unassigned --"}
               </option>
               {projectMembers.map((m) => (
-                <option key={m.user?._id} value={m.user?._id}>{m.user?.name} · {m.role?.replace("_", " ")}</option>
+                <option key={m.user?._id} value={m.user?._id}>
+                  {m.user?.name} · {m.role?.replace("_", " ")}
+                </option>
               ))}
             </select>
           </div>
 
-          {/* Priority — visual selector */}
+          {/* Priority — visual button selector */}
           <div className="form-group">
             <label className="form-label">Priority</label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
@@ -208,14 +240,13 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
                   style={{
                     padding: "0.5rem",
                     borderRadius: "var(--radius-sm)",
-                    border: formData.priority === p.value ? `1.5px solid ${p.color}55` : "1.5px solid var(--border)",
+                    border: formData.priority === p.value
+                      ? `1.5px solid ${p.color}55`
+                      : "1.5px solid var(--border)",
                     background: formData.priority === p.value ? `${p.color}12` : "var(--bg-3)",
                     color: formData.priority === p.value ? p.color : "var(--text-3)",
-                    cursor: "pointer",
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
-                    letterSpacing: "0.04em",
-                    textTransform: "uppercase",
+                    cursor: "pointer", fontSize: "0.75rem", fontWeight: 700,
+                    letterSpacing: "0.04em", textTransform: "uppercase",
                     transition: "all 0.15s",
                   }}
                 >
@@ -240,7 +271,9 @@ const TaskForm = ({ task, defaultProjectId, onSuccess, onClose }) => {
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               {isSubmitting
                 ? <><span className="spinner spinner-sm" style={{ borderTopColor: "white" }} /> {isEdit ? "Saving…" : "Creating…"}</>

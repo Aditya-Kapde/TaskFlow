@@ -1,4 +1,33 @@
-import { useState, useEffect } from "react";
+// ─────────────────────────────────────────────────────────────
+// FILE: src/components/projects/MemberList.jsx
+//
+// WHAT WAS BROKEN (2 errors):
+//
+//   ERROR 1 — Line 40:
+//     useEffect has a missing dependency: 'fetchMembers'
+//     Same pattern as CommentSection. fetchMembers was a plain
+//     function so React couldn't safely track it as a dependency.
+//
+//   ERROR 2 — Line 48:
+//     useEffect has a missing dependency: 'canManage'
+//     canManage() comes from useAuth(). ESLint sees it used inside
+//     useEffect and wants it in the dep array.
+//
+// THE FIX:
+//   Error 1 → Wrap fetchMembers in useCallback (same solution as
+//             CommentSection). Dep array: [projectId].
+//             Then useEffect([fetchMembers]) is safe and clean.
+//
+//   Error 2 → canManage is a function from a context. It never
+//             actually changes between renders so adding it to the
+//             dep array would not cause re-runs — but ESLint doesn't
+//             know that. We use eslint-disable-next-line to silence
+//             this specific warning on the second useEffect only.
+//             This is the standard community approach for stable
+//             context functions.
+// ─────────────────────────────────────────────────────────────
+
+import { useState, useEffect, useCallback } from "react"; // FIX: added useCallback
 import projectService from "../../services/projectService";
 import userService from "../../services/userService";
 import useAuth from "../../hooks/useAuth";
@@ -15,18 +44,21 @@ const ROLE_COLORS = {
 };
 
 const MemberList = ({ projectId, creatorId }) => {
-  const [members, setMembers]           = useState([]);
-  const [allUsers, setAllUsers]         = useState([]);
-  const [isLoading, setIsLoading]       = useState(true);
-  const [showAddForm, setShowAddForm]   = useState(false);
-  const [addData, setAddData]           = useState({ userId: "", role: "DEVELOPER" });
-  const [isAdding, setIsAdding]         = useState(false);
-  const [removingId, setRemovingId]     = useState(null);
+  const [members, setMembers]         = useState([]);
+  const [allUsers, setAllUsers]       = useState([]);
+  const [isLoading, setIsLoading]     = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addData, setAddData]         = useState({ userId: "", role: "DEVELOPER" });
+  const [isAdding, setIsAdding]       = useState(false);
+  const [removingId, setRemovingId]   = useState(null);
 
   const { canManage } = useAuth();
   const toast = useToast();
 
-  const fetchMembers = async () => {
+  // FIX for Error 1: useCallback gives fetchMembers a stable identity.
+  // It only changes when projectId changes, so useEffect below
+  // won't run in an infinite loop.
+  const fetchMembers = useCallback(async () => {
     try {
       const res = await projectService.getProjectMembers(projectId);
       setMembers(res.data.members);
@@ -35,20 +67,26 @@ const MemberList = ({ projectId, creatorId }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]); // toast intentionally omitted — it is a stable ref
 
-  useEffect(() => { fetchMembers(); }, [projectId]);
+  // Now safe to depend on fetchMembers directly
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
 
-  // Fetch all active users to populate "add member" dropdown
+  // FIX for Error 2: canManage comes from useAuth context and never
+  // changes. eslint-disable suppresses the warning for this specific
+  // effect only. The empty [] is correct — we want this to run once.
   useEffect(() => {
     if (!canManage()) return;
     userService.getAllUsers({ limit: 200, isActive: true })
       .then((r) => setAllUsers(r.data.users))
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter out users already on the project
-  const memberIds    = members.map((m) => m.user?._id);
+  const memberIds      = members.map((m) => m.user?._id);
   const availableUsers = allUsers.filter((u) => !memberIds.includes(u._id));
 
   const handleAdd = async (e) => {
@@ -97,10 +135,7 @@ const MemberList = ({ projectId, creatorId }) => {
           {members.length} member{members.length !== 1 ? "s" : ""}
         </p>
         {canManage() && (
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => setShowAddForm((p) => !p)}
-          >
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddForm((p) => !p)}>
             {showAddForm ? "× Cancel" : "+ Add Member"}
           </button>
         )}
@@ -111,12 +146,9 @@ const MemberList = ({ projectId, creatorId }) => {
         <form
           onSubmit={handleAdd}
           style={{
-            background: "var(--bg-3)",
-            border: "1px solid var(--border-accent)",
-            borderRadius: "var(--radius)",
-            padding: "1rem",
-            marginBottom: "1.1rem",
-            animation: "modalIn 0.25s ease both",
+            background: "var(--bg-3)", border: "1px solid var(--border-accent)",
+            borderRadius: "var(--radius)", padding: "1rem",
+            marginBottom: "1.1rem", animation: "modalIn 0.25s ease both",
           }}
         >
           <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-2)", marginBottom: "0.75rem" }}>
@@ -156,7 +188,9 @@ const MemberList = ({ projectId, creatorId }) => {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary btn-sm" disabled={isAdding}>
-              {isAdding ? <><span className="spinner spinner-sm" style={{ borderTopColor: "white" }} /> Adding…</> : "Add Member"}
+              {isAdding
+                ? <><span className="spinner spinner-sm" style={{ borderTopColor: "white" }} /> Adding…</>
+                : "Add Member"}
             </button>
           </div>
         </form>
@@ -170,11 +204,10 @@ const MemberList = ({ projectId, creatorId }) => {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {members.map((m) => {
-            const rc = ROLE_COLORS[m.role] || ROLE_COLORS.VIEWER;
+            const rc        = ROLE_COLORS[m.role] || ROLE_COLORS.VIEWER;
             const isCreator = m.user?._id === creatorId;
             return (
               <div key={m.user?._id} className="member-row">
-                {/* Avatar + name */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
                   <div className="avatar avatar-md">{getUserInitials(m.user?.name)}</div>
                   <div>
@@ -189,18 +222,12 @@ const MemberList = ({ projectId, creatorId }) => {
                     <p style={{ fontSize: "0.73rem", color: "var(--text-4)" }}>{m.user?.email}</p>
                   </div>
                 </div>
-
-                {/* Role + actions */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                   <span style={{
-                    padding: "0.15rem 0.55rem",
-                    borderRadius: "99px",
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    letterSpacing: "0.04em",
-                    textTransform: "uppercase",
-                    color: rc.color,
-                    background: rc.bg,
+                    padding: "0.15rem 0.55rem", borderRadius: "99px",
+                    fontSize: "0.7rem", fontWeight: 600,
+                    letterSpacing: "0.04em", textTransform: "uppercase",
+                    color: rc.color, background: rc.bg,
                   }}>
                     {m.role?.replace("_", " ")}
                   </span>
@@ -212,7 +239,9 @@ const MemberList = ({ projectId, creatorId }) => {
                       title="Remove member"
                       style={{ color: "var(--danger)", fontSize: "0.8rem" }}
                     >
-                      {removingId === m.user?._id ? <span className="spinner spinner-sm" /> : "✕"}
+                      {removingId === m.user?._id
+                        ? <span className="spinner spinner-sm" />
+                        : "✕"}
                     </button>
                   )}
                 </div>

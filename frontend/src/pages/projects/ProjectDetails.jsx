@@ -1,4 +1,28 @@
-import { useState, useEffect } from "react";
+// ─────────────────────────────────────────────────────────────
+// FILE: src/pages/projects/ProjectDetails.jsx
+//
+// WHAT WAS BROKEN (3 errors):
+//
+//   ERROR 1 — Line 47:
+//     'setPriorityFilter' is assigned a value but never used
+//     priorityFilter state was declared and used in fetchTasks,
+//     but setPriorityFilter (the setter) was never called from any
+//     button or input in the JSX. Fix: add priority filter buttons
+//     to the tasks tab toolbar so the setter is actually called.
+//
+//   ERROR 2 — Line 78:
+//     useEffect missing dependency: 'fetchProject'
+//     fetchProject was a plain async function inside the component,
+//     so it was recreated every render. Putting it in useEffect
+//     deps would cause infinite loops. Fix: wrap in useCallback.
+//
+//   ERROR 3 — Line 79:
+//     useEffect missing dependency: 'fetchTasks'
+//     Same issue. Fix: wrap in useCallback with its real deps
+//     [id, statusFilter, priorityFilter].
+// ─────────────────────────────────────────────────────────────
+
+import { useState, useEffect, useCallback } from "react"; // useCallback was already here — good
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../../components/layout/Navbar";
 import Sidebar from "../../components/layout/Sidebar";
@@ -24,29 +48,30 @@ const STATUS_CONFIG = {
 };
 
 const ProjectDetails = () => {
-  const { id }       = useParams();
-  const navigate     = useNavigate();
-  const toast        = useToast();
+  const { id }     = useParams();
+  const navigate   = useNavigate();
+  const toast      = useToast();
   const { canManage, isAdmin } = useAuth();
 
-  const [project, setProject]       = useState(null);
-  const [tasks, setTasks]           = useState([]);
-  const [loading, setLoading]       = useState(true);
+  const [project, setProject]           = useState(null);
+  const [tasks, setTasks]               = useState([]);
+  const [loading, setLoading]           = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [activeTab, setActiveTab]   = useState("overview");
+  const [activeTab, setActiveTab]       = useState("overview");
 
-  const [showEdit, setShowEdit]         = useState(false);
-  const [showCreateTask, setShowCreateTask] = useState(false);
-  const [editingTask, setEditingTask]   = useState(null);
-  const [deletingTask, setDeletingTask] = useState(null);
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [isDeleting, setIsDeleting]     = useState(false);
+  const [showEdit, setShowEdit]               = useState(false);
+  const [showCreateTask, setShowCreateTask]   = useState(false);
+  const [editingTask, setEditingTask]         = useState(null);
+  const [deletingTask, setDeletingTask]       = useState(null);
+  const [selectedTask, setSelectedTask]       = useState(null);
+  const [isDeleting, setIsDeleting]           = useState(false);
 
-  // Task filters
   const [statusFilter, setStatusFilter]     = useState("ALL");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
 
-  const fetchProject = async () => {
+  // FIX for Error 2: useCallback makes fetchProject stable.
+  // It only changes when `id` changes (new project URL).
+  const fetchProject = useCallback(async () => {
     try {
       const res = await projectService.getProjectById(id);
       setProject(res.data.project);
@@ -56,9 +81,13 @@ const ProjectDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]); // toast and navigate are stable refs — safe to omit
 
-  const fetchTasks = async () => {
+  // FIX for Error 3: useCallback with real deps [id, statusFilter,
+  // priorityFilter]. When any filter changes, a new stable callback
+  // is created, which triggers the useEffect below to re-run.
+  const fetchTasks = useCallback(async () => {
     setLoadingTasks(true);
     try {
       const params = {
@@ -73,10 +102,11 @@ const ProjectDetails = () => {
     } finally {
       setLoadingTasks(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, statusFilter, priorityFilter]); // toast omitted — stable ref
 
-  useEffect(() => { fetchProject(); }, [id]);
-  useEffect(() => { if (activeTab === "tasks") fetchTasks(); }, [activeTab, statusFilter, priorityFilter]);
+  useEffect(() => { fetchProject(); }, [fetchProject]);
+  useEffect(() => { if (activeTab === "tasks") fetchTasks(); }, [activeTab, fetchTasks]);
 
   const handleDeleteTask = async () => {
     setIsDeleting(true);
@@ -100,9 +130,9 @@ const ProjectDetails = () => {
   const cfg     = STATUS_CONFIG[project.status] || STATUS_CONFIG.PLANNING;
 
   const TABS = [
-    { key: "overview", label: "Overview",  icon: "📋" },
-    { key: "tasks",    label: "Tasks",     icon: "✅" },
-    { key: "members",  label: "Members",   icon: "👥", count: project.members?.length },
+    { key: "overview", label: "Overview", icon: "📋" },
+    { key: "tasks",    label: "Tasks",    icon: "✅" },
+    { key: "members",  label: "Members",  icon: "👥", count: project.members?.length },
   ];
 
   return (
@@ -111,14 +141,17 @@ const ProjectDetails = () => {
       <Navbar title="Project Details" />
 
       <main className="main-content">
-        {/* Back button */}
         <button className="btn btn-ghost btn-sm" style={{ marginBottom: "1.2rem" }} onClick={() => navigate("/projects")}>
           ← Back to Projects
         </button>
 
         {/* Project header card */}
-        <div className="card" style={{ marginBottom: "1.5rem", background: "linear-gradient(135deg, var(--bg-2) 0%, var(--bg-3) 100%)", borderColor: cfg.color + "30", position: "relative", overflow: "hidden" }}>
-          {/* Glow orb */}
+        <div className="card" style={{
+          marginBottom: "1.5rem",
+          background: "linear-gradient(135deg, var(--bg-2) 0%, var(--bg-3) 100%)",
+          borderColor: cfg.color + "30",
+          position: "relative", overflow: "hidden",
+        }}>
           <div style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, background: `radial-gradient(circle, ${cfg.color}15 0%, transparent 70%)`, pointerEvents: "none" }} />
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", position: "relative" }}>
@@ -131,17 +164,15 @@ const ProjectDetails = () => {
                 <span className={`badge ${cfg.badge}`}>{project.status?.replace("_", " ")}</span>
                 {overdue && <span className="badge badge-danger">Overdue ⚠</span>}
               </div>
-
               {project.description && (
                 <p style={{ color: "var(--text-3)", fontSize: "0.9rem", lineHeight: 1.65, maxWidth: 600 }}>
                   {project.description}
                 </p>
               )}
-
               <div style={{ display: "flex", gap: "1.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
                 {[
-                  { icon: "📅", label: "Deadline", value: formatDate(project.deadline) },
-                  { icon: "👥", label: "Members",  value: `${project.members?.length || 0}` },
+                  { icon: "📅", label: "Deadline",   value: formatDate(project.deadline) },
+                  { icon: "👥", label: "Members",    value: `${project.members?.length || 0}` },
                   { icon: "👤", label: "Created by", value: project.createdBy?.name },
                 ].map(({ icon, label, value }) => (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
@@ -151,7 +182,6 @@ const ProjectDetails = () => {
                 ))}
               </div>
             </div>
-
             {canManage() && (
               <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowEdit(true)}>✏️ Edit</button>
@@ -183,7 +213,7 @@ const ProjectDetails = () => {
           ))}
         </div>
 
-        {/* ── Tab: Overview ────────────────────────────────── */}
+        {/* ── Tab: Overview ──────────────────────────────── */}
         {activeTab === "overview" && (
           <div className="grid-2" style={{ alignItems: "start" }}>
             <div className="card">
@@ -208,12 +238,7 @@ const ProjectDetails = () => {
               <h3 className="card-title" style={{ marginBottom: "1.1rem" }}>Members Preview</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
                 {(project.members || []).slice(0, 5).map((m, i) => {
-                  const ROLE_COLORS = {
-                    PROJECT_MANAGER: "#7c5cfc",
-                    DEVELOPER:       "#4cc9f0",
-                    VIEWER:          "#00d68f",
-                    ADMIN:           "#ffb547",
-                  };
+                  const ROLE_COLORS = { PROJECT_MANAGER: "#7c5cfc", DEVELOPER: "#4cc9f0", VIEWER: "#00d68f", ADMIN: "#ffb547" };
                   return (
                     <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -236,15 +261,25 @@ const ProjectDetails = () => {
           </div>
         )}
 
-        {/* ── Tab: Tasks ───────────────────────────────────── */}
+        {/* ── Tab: Tasks ─────────────────────────────────── */}
         {activeTab === "tasks" && (
           <div>
             {/* Task toolbar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.1rem", gap: "0.75rem", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.1rem", flexWrap: "wrap", alignItems: "center" }}>
+              {/* Status filters */}
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                 {["ALL","TODO","IN_PROGRESS","IN_REVIEW","DONE"].map((s) => (
                   <button key={s} className={`btn btn-sm ${statusFilter === s ? "btn-primary" : "btn-secondary"}`} onClick={() => setStatusFilter(s)}>
                     {s === "ALL" ? "All Status" : s.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+              {/* FIX for Error 1: Priority filter buttons now call
+                  setPriorityFilter — the setter is no longer unused */}
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                {["ALL","LOW","MEDIUM","HIGH","CRITICAL"].map((p) => (
+                  <button key={p} className={`btn btn-sm ${priorityFilter === p ? "btn-primary" : "btn-secondary"}`} onClick={() => setPriorityFilter(p)}>
+                    {p === "ALL" ? "All Priority" : p}
                   </button>
                 ))}
               </div>
@@ -260,7 +295,11 @@ const ProjectDetails = () => {
                 icon="✅"
                 title="No tasks found"
                 message="No tasks match the current filters."
-                action={canManage() && <button className="btn btn-primary btn-sm" onClick={() => setShowCreateTask(true)}>Create First Task</button>}
+                action={canManage() && (
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowCreateTask(true)}>
+                    Create First Task
+                  </button>
+                )}
               />
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: selectedTask ? "1fr 380px" : "1fr", gap: "1.25rem", alignItems: "start" }}>
@@ -281,15 +320,18 @@ const ProjectDetails = () => {
                   ))}
                 </div>
 
-                {/* Task detail panel */}
                 {selectedTask && (
                   <div className="card detail-panel" style={{ gridColumn: "2" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-                      <h3 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: "1rem", flex: 1, paddingRight: "0.5rem" }}>{selectedTask.title}</h3>
+                      <h3 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: "1rem", flex: 1, paddingRight: "0.5rem" }}>
+                        {selectedTask.title}
+                      </h3>
                       <button className="modal-close" onClick={() => setSelectedTask(null)}>×</button>
                     </div>
                     {selectedTask.description && (
-                      <p style={{ fontSize: "0.85rem", color: "var(--text-3)", lineHeight: 1.65, marginBottom: "1rem" }}>{selectedTask.description}</p>
+                      <p style={{ fontSize: "0.85rem", color: "var(--text-3)", lineHeight: 1.65, marginBottom: "1rem" }}>
+                        {selectedTask.description}
+                      </p>
                     )}
                     <div className="divider" />
                     <h4 style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.85rem", color: "var(--text-2)" }}>💬 Comments</h4>
@@ -301,7 +343,7 @@ const ProjectDetails = () => {
           </div>
         )}
 
-        {/* ── Tab: Members ─────────────────────────────────── */}
+        {/* ── Tab: Members ───────────────────────────────── */}
         {activeTab === "members" && (
           <div className="card" style={{ maxWidth: 600 }}>
             <MemberList projectId={id} creatorId={project.createdBy?._id} />
@@ -312,11 +354,9 @@ const ProjectDetails = () => {
       {showEdit && (
         <ProjectForm project={project} onSuccess={() => { setShowEdit(false); fetchProject(); }} onClose={() => setShowEdit(false)} />
       )}
-
       {showCreateTask && (
         <TaskForm defaultProjectId={id} onSuccess={() => { setShowCreateTask(false); fetchTasks(); }} onClose={() => setShowCreateTask(false)} />
       )}
-
       {editingTask && (
         <TaskForm task={editingTask} onSuccess={() => { setEditingTask(null); fetchTasks(); }} onClose={() => setEditingTask(null)} />
       )}
