@@ -1,5 +1,7 @@
 # ⚡ TaskFlow
 
+[![Live Demo](https://img.shields.io/badge/Live-Demo-green?style=for-the-badge)](https://taskflow-frontend-olive.vercel.app/)
+
 A full-stack **MERN** application for managing projects and tasks with secure JWT authentication and role-based access control (RBAC).
 
 ---
@@ -7,6 +9,7 @@ A full-stack **MERN** application for managing projects and tasks with secure JW
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Live Demo](#live-demo)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Roles & Permissions](#roles--permissions)
@@ -23,6 +26,15 @@ A full-stack **MERN** application for managing projects and tasks with secure JW
 ## Overview
 
 A production-quality project management system where teams can collaborate on projects and tasks. The system supports secure authentication, granular role-based authorization, project and task management, and team collaboration through comments.
+
+---
+
+## 🌐 Live Demo
+
+- 🚀 Frontend: https://taskflow-frontend-olive.vercel.app/
+- ⚙️ Backend API: https://taskflow-backend-5y3j.onrender.com
+
+> Note: The backend may take a few seconds to respond on first request due to cold starts (Render free tier).
 
 ---
 
