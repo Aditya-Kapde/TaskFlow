@@ -37,7 +37,8 @@ const tokenService = {
     res.cookie("refreshToken", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      path: "/", // ✅ important
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     });
   },
@@ -48,7 +49,8 @@ const tokenService = {
     res.cookie("refreshToken", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      path: "/", // ✅ must match
       maxAge: 0, // Expire immediately
     });
   },

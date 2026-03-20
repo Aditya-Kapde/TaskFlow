@@ -19,10 +19,22 @@ connectDB();
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────
+// backend/server.js — update the cors config
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
-    credentials: true, // Required to allow cookies (refresh token) cross-origin
+    origin: function (origin, callback) {
+      const allowed = [
+        process.env.CLIENT_URL,          // your Vercel URL from .env
+        "http://localhost:3000",          // local dev
+      ].filter(Boolean);
+
+      if (!origin || allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,                   // required for httpOnly cookies
   })
 );
 app.use(express.json());
