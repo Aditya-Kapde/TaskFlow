@@ -20,23 +20,33 @@ const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────
 // backend/server.js — update the cors config
+import cors from "cors";
+
 app.use(
   cors({
     origin: function (origin, callback) {
-      const allowed = [
-        process.env.CLIENT_URL,          // your Vercel URL from .env
-        "http://localhost:3000",          // local dev
+      // Allow requests with no origin (Postman, mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        process.env.CLIENT_URL,
+        "http://localhost:3000",
       ].filter(Boolean);
 
-      if (!origin || allowed.includes(origin)) {
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error(`CORS blocked: ${origin}`));
       }
     },
-    credentials: true,                   // required for httpOnly cookies
+    credentials: true,   // ← required for cookies to work cross-origin
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Handle preflight requests for all routes
+app.options("*", cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
