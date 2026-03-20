@@ -60,7 +60,8 @@ app.use(
 
 // Handle preflight OPTIONS requests for every route
 // Browsers send a preflight before POST/PUT/PATCH with credentials
-app.options("*", cors());
+// ✅ REPLACE WITH THIS
+app.options("/(.*)", cors());
 
 // ─── Body parsers ─────────────────────────────────────────────
 app.use(express.json());
