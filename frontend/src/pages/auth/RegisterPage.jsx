@@ -7,13 +7,6 @@ import { getErrorMessage } from "../../utils/helpers";
 // ── All 4 roles including ADMIN ────────────────────────────────
 const ROLES = [
   {
-    value: "ADMIN",
-    label: "Admin",
-    desc:  "Full system access — manage users, projects, tasks",
-    icon:  "👑",
-    color: "#ffb547",
-  },
-  {
     value: "PROJECT_MANAGER",
     label: "Project Manager",
     desc:  "Manage projects, members, and tasks",

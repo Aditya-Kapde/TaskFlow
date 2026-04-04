@@ -7,46 +7,36 @@ const ApiResponse = require("../utils/apiResponse");
 // @route   POST /api/auth/register
 // @access  Public
 // ─────────────────────────────────────────────────────────────
+
 const register = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // ── Check if email already exists ──────────────────────────
-    // We do this manually to return a clear error message
-    // MongoDB unique index would also catch this, but gives a
-    // less user-friendly error
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return ApiResponse.error(res, 409, "Email is already registered");
     }
 
-    // ── Create user ────────────────────────────────────────────
-    // Password hashing happens automatically in the pre-save hook
-    // We never call bcrypt.hash() here
+    // 🔐 Secure role handling
+    const allowedRoles = ["PROJECT_MANAGER", "DEVELOPER", "VIEWER"];
+    const safeRole = allowedRoles.includes(role) ? role : "VIEWER";
+
     const user = await User.create({
       name,
       email,
       password,
-      role: role || "VIEWER", // Default to VIEWER if no role provided
+      role: safeRole,
     });
 
-    // ── Generate tokens ────────────────────────────────────────
     const payload = { id: user._id, role: user.role };
     const accessToken = tokenService.generateAccessToken(payload);
     const refreshToken = tokenService.generateRefreshToken(payload);
 
-    // ── Save refresh token to database ─────────────────────────
-    // Storing it in DB lets us invalidate it on logout
-    // If we did not store it, any refresh token signed with our
-    // secret would be valid forever until it expires
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-    // ── Set refresh token in httpOnly cookie ───────────────────
     tokenService.setRefreshTokenCookie(res, refreshToken);
 
-    // ── Return response ────────────────────────────────────────
-    // Never return password or refreshToken in the response body
     return ApiResponse.success(res, 201, "Registration successful", {
       user: {
         id: user._id,
@@ -57,7 +47,7 @@ const register = async (req, res, next) => {
       accessToken,
     });
   } catch (error) {
-    next(error); // Pass to global error middleware
+    next(error);
   }
 };
 
